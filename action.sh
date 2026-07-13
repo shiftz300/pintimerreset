@@ -126,6 +126,13 @@ show_status() {
     echo "$(T 'Service' '服务'): $SVC    $(T 'Config' '配置'): $CFG"
     echo "$(T 'Interval: every' '间隔: 每') $(fmt_dur "$CHECK_INTERVAL")"
 
+    # 显示系统强认证超时
+    SYS_TO=$(settings get secure lock_to_app_exipire 2>/dev/null)
+    if [ -n "$SYS_TO" ] && [ "$SYS_TO" -gt 0 ] 2>/dev/null; then
+        SYS_TO_H=$((SYS_TO / 3600000))
+        echo "$(T 'Sys timeout' '系统超时'): ${SYS_TO_H}h  $(T '(change: set-timeout <h>)' '(修改: set-timeout <h>)')"
+    fi
+
     if [ -f "$LAST_RESET" ]; then
         LAST_EPOCH=$(cat "$LAST_RESET" 2>/dev/null)
         if [ -n "$LAST_EPOCH" ] && [ "$LAST_EPOCH" -gt 0 ] 2>/dev/null; then
@@ -155,9 +162,7 @@ show_status() {
 # ---- 设置检查间隔（音量键选择） ----
 set_interval_interactive() {
     echo ""
-    echo "  ╔══════════════════════════════╗"
-    echo "  ║  $(T 'Set Check Interval' '设置检查间隔')    ║"
-    echo "  ╚══════════════════════════════╝"
+    echo "--- $(T 'Set Check Interval' '设置检查间隔') ---"
     echo ""
     echo "  $(T 'Vol+ = next value'  'Vol+ = 下一个值')"
     echo "  $(T 'Vol- = confirm'     'Vol- = 确认')"
@@ -169,7 +174,7 @@ set_interval_interactive() {
 
     while true; do
         VAL=$(echo "$PRESETS" | cut -d' ' -f$((IDX + 1)))
-        printf '\r  %s: [%sh]  (%ss)  ' "$(T 'Interval' '间隔')" "$VAL" "$((VAL * 3600))"
+        printf '\r  %s: [%sh]  ' "$(T 'Interval' '间隔')" "$VAL"
 
         WAIT=$(wait_volkey 8)
         case "$WAIT" in
@@ -186,9 +191,7 @@ set_interval_interactive() {
 # ---- 交互式 PIN 修改（音量键输入数字） ----
 change_pin_interactive() {
     echo ""
-    echo "  ╔══════════════════════════════╗"
-    echo "  ║  $(T 'Enter new PIN' '输入新 PIN')          ║"
-    echo "  ╚══════════════════════════════╝"
+    echo "--- $(T 'Enter new PIN' '输入新 PIN') ---"
     echo ""
     echo "  $(T 'Vol+ = increase digit (0-9)' 'Vol+ = 数字 +1 (0~9)')"
     echo "  $(T 'Vol- = confirm digit / next' 'Vol- = 确认当前位 / 下一位')"
@@ -197,21 +200,14 @@ change_pin_interactive() {
 
     PIN=""
     DIGIT=0
-    POS=1
     while true; do
-        _stars=""
-        i=1; while [ "$i" -lt "$POS" ]; do
-            _stars="${_stars}*"
-            i=$((i + 1))
-        done
-        _stars="${_stars}[${DIGIT}]"
-        printf '\r  PIN: %-20s' "$_stars"
+        printf '\r  PIN: %s[%d]' "$(echo "$PIN" | sed 's/./*/g')" "$DIGIT"
 
         WAIT=$(wait_volkey 5)
         case "$WAIT" in
-            0) DIGIT=$(( (DIGIT + 1) % 10 )) ;;          # Vol+ = +1
-            1) PIN="${PIN}${DIGIT}"; POS=$((POS + 1)); DIGIT=0 ;;  # Vol- = 确认
-            2) PIN="${PIN}${DIGIT}"; break ;;             # 超时 = 结束
+            0) DIGIT=$(( (DIGIT + 1) % 10 )) ;;
+            1) PIN="${PIN}${DIGIT}"; DIGIT=0 ;;
+            2) PIN="${PIN}${DIGIT}"; break ;;
         esac
     done
 
@@ -230,35 +226,27 @@ change_pin_interactive() {
 # ---- 配置子菜单 ----
 config_menu() {
     echo ""
-    echo "  ╔══════════════════════════════╗"
-    echo "  ║  $(T 'Configuration' '配置')                 ║"
-    echo "  ╚══════════════════════════════╝"
+    echo "--- $(T 'Configuration' '配置') ---"
     echo ""
     echo "  $(T 'Vol+  = Set check interval'   'Vol+  = 设置检查间隔')"
     echo "  $(T 'Vol-  = Change PIN'           'Vol-  = 修改 PIN')"
     echo "  $(T '(Wait 8s = back)'             '(等待8秒 = 返回)')"
-    echo ""
-    echo "──────────────────────────────────"
 
     WAIT=$(wait_volkey 8)
     case "$WAIT" in
         0) set_interval_interactive ;;
         1) change_pin_interactive ;;
-        2) echo "$(T 'Back to main menu.' '返回主菜单。')" ;;
+        2) echo "$(T 'Back.' '已返回。')" ;;
     esac
 }
 
 # ====================== 主交互菜单 ======================
 echo ""
-echo "  ╔══════════════════════════════╗"
-echo "  ║  48H PIN Timer Reset v1.0  ║"
-echo "  ╚══════════════════════════════╝"
+echo "  $(T '48H PIN Timer Reset  v1.0' '48H PIN Timer Reset  v1.0')"
 echo ""
 echo "  $(T 'Vol+  = [1] View Status'      'Vol+  = [1] 查看状态')"
 echo "  $(T 'Vol-  = [2] Configuration'    'Vol-  = [2] 配置')"
 echo "  $(T '(Wait 10s = default Status)'  '(等待10秒 = 默认显示状态)')"
-echo ""
-echo "──────────────────────────────────"
 
 WAIT=$(wait_volkey 10)
 case "$WAIT" in
@@ -267,4 +255,4 @@ case "$WAIT" in
 esac
 
 echo ""
-echo "$(T 'Tip: terminal for more options' '提示: 终端查看更多选项'): su -c sh $MODDIR/action.sh --help"
+echo "$(T 'CLI: set-pin <PIN> | set-timeout <h> | --help' 'CLI: set-pin <PIN> | set-timeout <h> | --help')"

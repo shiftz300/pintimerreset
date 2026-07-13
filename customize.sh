@@ -14,9 +14,7 @@ is_zh() {
 T() { if is_zh; then echo "$2"; else echo "$1"; fi }
 
 ui_print ""
-ui_print "  ╔══════════════════════════════════════╗"
-ui_print "  ║   48H PIN Timer Reset Module v1.0   ║"
-ui_print "  ╚══════════════════════════════════════╝"
+ui_print "  48H PIN Timer Reset Module v1.0"
 ui_print ""
 ui_print "  $(T '- Auto-verify PIN every 6h to reset 48h timeout' '- 每 6 小时自动验证 PIN，重置 48h 超时')"
 ui_print "  $(T '- KSU card shows real-time refresh status' '- KernelSU 卡片实时显示刷新状态')"
@@ -25,7 +23,7 @@ ui_print ""
 # ---- 配置 PIN 引导 ----
 PIN_CONF="$MODPATH/pin.conf"
 
-ui_print "  ────── $(T 'Configure PIN' '配置解锁 PIN') ──────"
+ui_print "  --- $(T 'Configure PIN' '配置解锁 PIN') ---"
 ui_print ""
 ui_print "  $(T 'After install, run in terminal:' '安装后通过终端执行:')"
 ui_print "    su -c sh $MODPATH/action.sh set-pin $(T 'YOUR_PIN' '你的PIN')"
