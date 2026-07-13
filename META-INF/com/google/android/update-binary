@@ -4,6 +4,7 @@
 # Magisk Module Installer — update-binary
 # 兼容 Magisk v20.4+
 # ===================================================================
+# shellcheck disable=SC2034
 
 umask 022
 

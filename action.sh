@@ -3,6 +3,7 @@
 # KernelSU Action - 点击「操作」按钮查看/管理 PIN 计时器
 # ksud 以 busybox sh 执行此脚本，stdout 弹窗显示给用户
 # ===================================================================
+# shellcheck disable=SC3043
 
 MODDIR=${0%/*}
 STATUS_CONF="$MODDIR/status.conf"
@@ -22,6 +23,7 @@ T() { if is_zh; then echo "$2"; else echo "$1"; fi }
 
 # ---- 加载状态配置 ----
 CHECK_INTERVAL=21600
+# shellcheck source=/dev/null
 [ -f "$STATUS_CONF" ] && . "$STATUS_CONF"
 
 # ====================== 参数解析 ======================

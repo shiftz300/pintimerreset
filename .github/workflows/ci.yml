@@ -19,7 +19,7 @@ jobs:
         with:
           scandir: '.'
           severity: warning
-          ignore: action.sh,service.sh,customize.sh
+          ignore_names: update-binary
 
   package:
     name: Package Module

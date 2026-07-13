@@ -3,6 +3,7 @@
 # 48H PIN Timer Reset — 核心服务脚本
 # 定时通过 locksettings 验证 PIN，重置 TEE 侧的 48 小时超时计时器
 # ===================================================================
+# shellcheck disable=SC3043
 
 MODDIR=${0%/*}
 CONFIG_FILE="$MODDIR/pin.conf"
