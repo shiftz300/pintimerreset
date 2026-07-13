@@ -26,21 +26,6 @@ service.sh (every N hours)
 | TEE verification | [`LockSettingsService.java:2421`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/core/java/com/android/server/locksettings/LockSettingsService.java) | `doVerifyCredential()` → `unlockLskfBasedProtector()` |
 | Timer reset | [`LockSettingsService.java:3107`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/core/java/com/android/server/locksettings/LockSettingsService.java) | `mStrongAuth.reportSuccessfulStrongAuthUnlock()` |
 
-### Strong Auth Timeout Source
-
-The system's "require PIN after X hours" value is stored in:
-
-```
-Settings.Secure.LOCK_TO_APP_EXPIRE  (milliseconds, default 259200000 = 72h)
-```
-
-Defined in [`LockPatternUtils.StrongAuthTracker`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/java/com/android/internal/widget/LockPatternUtils.java) — OEMs (Samsung, etc.) override the default to 48h. This module can modify it:
-
-```bash
-action.sh set-timeout 24   # 24h
-action.sh set-timeout 168  # 7 days
-```
-
 ---
 
 ## Quick Start
@@ -79,10 +64,9 @@ Tap the module's **Action** button in KSU Manager:
 ## CLI Reference
 
 ```bash
-action.sh                        # Interactive volume-key menu
-action.sh set-pin <PIN>          # Set PIN directly
-action.sh set-timeout <hours>    # Set system strong auth timeout (12/24/48/72/168/720)
-action.sh --help                 # Show help
+action.sh                # Interactive volume-key menu
+action.sh set-pin <PIN>  # Set PIN directly
+action.sh --help         # Show help
 ```
 
 ---
@@ -103,7 +87,6 @@ Updated by `service.sh` via `ksud module config set override.description`.
 |------|----------|---------|
 | PIN | `pin.conf` (root-only, 0600) | required |
 | Check interval | `CHECK_INTERVAL=` in `service.sh` | 21600s (6h) |
-| System timeout | `action.sh set-timeout <h>` based on `Settings.Secure.LOCK_TO_APP_EXPIRE` | 48h (varies by OEM) |
 | Log | `pin_reset.log` | rotated at 500 lines |
 
 ---

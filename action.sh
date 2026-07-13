@@ -43,27 +43,12 @@ if [ "$CMD" = "set-pin" ]; then
     exit 0
 fi
 
-# -- set-timeout: 修改强认证超时
-if [ "$CMD" = "set-timeout" ]; then
-    HOURS="${2:-}"
-    if [ -z "$HOURS" ] || ! [ "$HOURS" -gt 0 ] 2>/dev/null; then
-        echo "$(T 'Usage: action.sh set-timeout <hours>' '用法: action.sh set-timeout <小时>')"
-        echo "$(T 'Common: 12 24 48 72 168(7d) 720(30d)' '常用: 12 24 48 72 168(7d) 720(30d)')"
-        exit 1
-    fi
-    MS=$((HOURS * 3600 * 1000))
-    settings put secure lock_to_app_exipire "$MS" 2>/dev/null
-    echo "$(T 'Timeout set to' '超时已设为') ${HOURS}h."
-    exit 0
-fi
-
 # -- help
 if [ "$CMD" = "-h" ] || [ "$CMD" = "--help" ]; then
     echo "$(T 'Usage:' '用法:') action.sh [command] [args]"
-    echo "  $(T '(none)              Interactive volume-key menu' '(无参数)            音量键交互菜单')"
-    echo "  set-pin <PIN>         $(T 'Set unlock PIN directly' '直接设置解锁 PIN')"
-    echo "  set-timeout <hours>   $(T 'Set strong auth timeout' '设置强认证超时')"
-    echo "  -h, --help            $(T 'Show this help' '显示帮助')"
+    echo "  $(T '(none)       Interactive volume-key menu' '(无参数)     音量键交互菜单')"
+    echo "  set-pin <PIN>  $(T 'Set unlock PIN directly' '直接设置解锁 PIN')"
+    echo "  -h, --help     $(T 'Show this help' '显示帮助')"
     exit 0
 fi
 
@@ -125,13 +110,6 @@ show_status() {
     echo ""
     echo "$(T 'Service' '服务'): $SVC    $(T 'Config' '配置'): $CFG"
     echo "$(T 'Interval: every' '间隔: 每') $(fmt_dur "$CHECK_INTERVAL")"
-
-    # 显示系统强认证超时
-    SYS_TO=$(settings get secure lock_to_app_exipire 2>/dev/null)
-    if [ -n "$SYS_TO" ] && [ "$SYS_TO" -gt 0 ] 2>/dev/null; then
-        SYS_TO_H=$((SYS_TO / 3600000))
-        echo "$(T 'Sys timeout' '系统超时'): ${SYS_TO_H}h  $(T '(change: set-timeout <h>)' '(修改: set-timeout <h>)')"
-    fi
 
     if [ -f "$LAST_RESET" ]; then
         LAST_EPOCH=$(cat "$LAST_RESET" 2>/dev/null)
@@ -255,4 +233,4 @@ case "$WAIT" in
 esac
 
 echo ""
-echo "$(T 'CLI: set-pin <PIN> | set-timeout <h> | --help' 'CLI: set-pin <PIN> | set-timeout <h> | --help')"
+echo "$(T 'CLI: set-pin <PIN> | --help' 'CLI: set-pin <PIN> | --help')"
