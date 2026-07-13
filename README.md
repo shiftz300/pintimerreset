@@ -110,7 +110,7 @@ Updated by `service.sh` via `ksud module config set override.description`.
 
 ## Compatibility
 
-- ✅ KernelSU (Action + card + WebUI)
+- ✅ KernelSU (Action + card + volume-key CLI)
 - ✅ Android 10–14 AOSP
 - ⚠️ Magisk (basic only; card/action are KSU features)
 - ⚠️ MIUI/HyperOS, Samsung OneUI — may vary
