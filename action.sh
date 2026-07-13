@@ -92,8 +92,16 @@ else
 fi
 
 # ====================== 输出 ======================
-echo "48H PIN Timer Reset  v1.0"
-echo "──────────────────────────────────────"
+echo "  ╔══════════════════════════════════╗"
+echo "  ║  48H PIN Timer Reset  v1.0     ║"
+echo "  ╚══════════════════════════════════╝"
+echo ""
+echo "  $(T '[1] View Status    (current)' '[1] 查看状态    (当前)')"
+echo "  $(T '[2] Change PIN     action.sh set-pin <PIN>' '[2] 修改 PIN     action.sh set-pin <PIN>')"
+echo ""
+echo "──────────────────────────────────────────────"
+
+echo ""
 echo "$(T 'Service' '服务'): $SVC    $(T 'Config' '配置'): $CFG"
 echo "$(T 'Interval: every' '间隔: 每') $(fmt_dur "$CHECK_INTERVAL")"
 
@@ -134,3 +142,5 @@ if [ -f "$LOG_FILE" ]; then
 else
     echo "($(T 'none' '暂无'))"
 fi
+echo ""
+echo "$(T 'Run in terminal to interact' '终端执行以交互'): su -c sh $MODDIR/action.sh"
