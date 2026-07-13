@@ -47,14 +47,38 @@ if [ "$CMD" = "set-pin" ]; then
     exit 0
 fi
 
+# -- set-timeout: 修改系统强认证超时
+if [ "$CMD" = "set-timeout" ]; then
+    HOURS="${2:-}"
+    if [ -z "$HOURS" ] || ! [ "$HOURS" -gt 0 ] 2>/dev/null; then
+        echo "$(T 'Usage: action.sh set-timeout <hours>' '用法: action.sh set-timeout <小时>')"
+        echo "$(T 'Example: action.sh set-timeout 24' '示例: action.sh set-timeout 24')"
+        echo ""
+        echo "$(T 'Common values' '常用值'): 12h 24h 48h 72h 168h(7d) 720h(30d)"
+        exit 1
+    fi
+
+    MS=$((HOURS * 3600 * 1000))
+    settings put secure lock_to_app_exipire "$MS" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        echo "$(T 'Strong auth timeout set to' '强认证超时已设为') ${HOURS}h ($(T 'takes effect on next auth cycle' '下次认证周期生效'))"
+    else
+        echo "$(T 'Failed to set timeout. Requires WRITE_SECURE_SETTINGS permission.' '设置超时失败。需要 WRITE_SECURE_SETTINGS 权限。')"
+        exit 1
+    fi
+    exit 0
+fi
+
 # -- help
 if [ "$CMD" = "-h" ] || [ "$CMD" = "--help" ]; then
     echo "$(T 'Usage: action.sh [command] [args]' '用法: action.sh [命令] [参数]')"
     echo ""
     echo "$(T 'Commands:' '命令:')"
-    echo "  $(T '(none)          Show refresh status' '(无参数)        查看刷新状态')"
-    echo "  $(T 'set-pin <PIN>    Set/update unlock PIN' 'set-pin <PIN>    设置/更新解锁 PIN')"
-    echo "  $(T '-h, --help       Show this help' '-h, --help       显示此帮助')"
+    echo "  $(T '(none)              Show refresh status' '(无参数)            查看刷新状态')"
+    echo "  $(T 'set-pin <PIN>        Set/update unlock PIN' 'set-pin <PIN>        设置/更新解锁 PIN')"
+    echo "  $(T 'set-timeout <hours>  Set strong auth timeout' 'set-timeout <小时>  设置强认证超时')"
+    echo "  $(T '-h, --help           Show this help' '-h, --help           显示此帮助')"
     exit 0
 fi
 

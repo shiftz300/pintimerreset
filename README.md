@@ -11,18 +11,18 @@ Periodically resets the Android 48-hour PIN timeout by verifying your device PIN
 ## How It Works / 工作原理
 
 ```
-┌──────────────┐    every 6h    ┌──────────────────┐     GateKeeper     ┌──────────────┐
-│  service.sh  │ ────────────→ │ locksettings      │ ────────────────→ │  TEE (Trusted │
-│  (daemon)    │               │ verify --old <PIN>│                   │  Execution)   │
-└──────────────┘               └───────┬────────────┘                   └──────┬───────┘
-                                       │  RESPONSE_OK                         │
-                                       ▼                                      ▼
-                               ┌──────────────────┐                   ┌──────────────┐
-                               │ LockSettingsService│                  │ Auth Token   │
+┌──────────────┐    every 6h   ┌───────────────────┐     GateKeeper     ┌──────────────┐
+│  service.sh  │ ────────────→ │ locksettings      │ ────────────────→  │ TEE (Trusted │
+│  (daemon)    │               │ verify --old <PIN>│                    │ Execution)   │
+└──────────────┘               └───────┬───────────┘                    └──────┬───────┘
+                                       │  RESPONSE_OK                          │
+                                       ▼                                       ▼
+                               ┌─────────────────────┐                 ┌──────────────┐
+                               │ LockSettingsService │                 │ Auth Token   │
                                │ onCredentialVerified│                 │ refreshed    │
-                               │ → reportSuccessful │                 │ 48h countdown│
-                               │   StrongAuthUnlock │                 │ reset to 0   │
-                               └──────────────────┘                   └──────────────┘
+                               │ → reportSuccessful  │                 │ 48h countdown│
+                               │   StrongAuthUnlock  │                 │ reset to 0   │
+                               └─────────────────────┘                 └──────────────┘
 ```
 
 ### AOSP Source depending

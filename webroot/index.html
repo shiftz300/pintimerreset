@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>PIN Timer Reset</title>
+<style>
+:root {
+    --bg: #0f0f0f;
+    --card: #1a1a1a;
+    --accent: #4fc3f7;
+    --green: #66bb6a;
+    --red: #ef5350;
+    --yellow: #ffa726;
+    --text: #e0e0e0;
+    --muted: #888;
+    --border: #333;
+    --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 16px;
+    min-height: 100vh;
+}
+h2 { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 14px;
+}
+.row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+.row + .row { border-top: 1px solid var(--border); }
+.label { color: var(--muted); font-size: 13px; }
+.value { font-size: 14px; font-weight: 500; font-family: monospace; }
+.accent { color: var(--accent); }
+.green { color: var(--green); }
+.red { color: var(--red); }
+.yellow { color: var(--yellow); }
+
+input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #111;
+    color: var(--text);
+    font-size: 16px;
+    font-family: monospace;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+}
+input:focus { outline: none; border-color: var(--accent); }
+
+select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #111;
+    color: var(--text);
+    font-size: 15px;
+    margin-bottom: 10px;
+    appearance: none;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 8px;
+    transition: opacity 0.2s;
+}
+button:active { opacity: 0.7; }
+.btn-primary { background: var(--accent); color: #000; }
+.btn-warn { background: var(--yellow); color: #000; }
+
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+.log-line {
+    font-size: 12px;
+    font-family: monospace;
+    color: var(--muted);
+    padding: 2px 0;
+    border-bottom: 1px solid #1a1a1a;
+    word-break: break-all;
+}
+.spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<h2 style="color:var(--accent)">🔐 PIN Timer Reset</h2>
+
+<!-- Status Card -->
+<div class="card" id="statusCard">
+    <div class="row"><span class="label">Service</span><span class="value" id="svc">─</span></div>
+    <div class="row"><span class="label">Config</span><span class="value" id="cfg">─</span></div>
+    <div class="row"><span class="label">Interval</span><span class="value" id="interval">─</span></div>
+    <div class="row"><span class="label">Last Refresh</span><span class="value" id="last">─</span></div>
+    <div class="row"><span class="label">Next Refresh</span><span class="value" id="next">─</span></div>
+    <button class="btn-primary" onclick="refresh()">Refresh Status</button>
+</div>
+
+<!-- PIN Card -->
+<div class="card">
+    <h2>Change PIN</h2>
+    <input type="password" id="pinInput" placeholder="Enter new PIN" inputmode="numeric" maxlength="16" autocomplete="off">
+    <button class="btn-warn" onclick="changePin()">Save PIN</button>
+</div>
+
+<!-- Timeout Card -->
+<div class="card">
+    <h2>Strong Auth Timeout</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:10px">
+        Controls how long after last unlock until PIN is forced again.
+    </p>
+    <select id="timeoutSelect">
+        <option value="43200000">12 hours</option>
+        <option value="86400000">24 hours</option>
+        <option value="172800000" selected>48 hours (default)</option>
+        <option value="259200000">72 hours</option>
+        <option value="604800000">7 days</option>
+        <option value="2592000000">30 days</option>
+    </select>
+    <button class="btn-primary" onclick="setTimeout()">Apply Timeout</button>
+</div>
+
+<!-- Logs Card -->
+<div class="card">
+    <h2>Recent Logs</h2>
+    <div id="logs">Loading...</div>
+    <button class="btn-primary" onclick="refresh()" style="margin-top:8px">Refresh</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { exec } from 'kernelsu';
+
+const MODDIR = '/data/adb/modules/pin_timer_reset';
+const LAST_RESET = `${MODDIR}/last_reset.time`;
+const LOG_FILE = `${MODDIR}/pin_reset.log`;
+const PIN_CONF = `${MODDIR}/pin.conf`;
+
+window.refresh = async function() {
+    document.getElementById('statusCard').querySelector('h2')?.remove();
+    const statusCard = document.getElementById('statusCard');
+
+    try {
+        // Check service
+        const { stdout: svcOut } = await exec(`pgrep -f "pin_timer_reset.*service\\.sh" && echo Running || echo Stopped`);
+        document.getElementById('svc').innerHTML = svcOut.trim() === 'Running'
+            ? '<span class="green">Running</span>'
+            : '<span class="red">Stopped</span>';
+
+        // Check config
+        const { stdout: cfgOut } = await exec(`[ -s "${PIN_CONF}" ] && echo Set || echo "Not set"`);
+        document.getElementById('cfg').innerHTML = cfgOut.trim() === 'Set'
+            ? '<span class="green">Set</span>'
+            : '<span class="red">Not set</span>';
+
+        // Interval (from status.conf)
+        let interval = 21600;
+        try {
+            const { stdout: intOut } = await exec(`cat ${MODDIR}/status.conf 2>/dev/null | grep CHECK_INTERVAL | cut -d= -f2`);
+            interval = parseInt(intOut.trim()) || 21600;
+        } catch(e) {}
+
+        const h = Math.floor(interval / 3600);
+        const m = Math.floor((interval % 3600) / 60);
+        document.getElementById('interval').textContent = `every ${h}h${m > 0 ? m + 'm' : ''}`;
+
+        // Last reset
+        try {
+            const { stdout: lastOut } = await exec(`cat ${LAST_RESET} 2>/dev/null`);
+            const lastEpoch = parseInt(lastOut.trim());
+            if (lastEpoch > 0) {
+                const now = Math.floor(Date.now() / 1000);
+                const elapsed = now - lastEpoch;
+                const remain = interval - elapsed;
+                const lastDate = new Date(lastEpoch * 1000).toLocaleString();
+                document.getElementById('last').textContent = lastDate;
+
+                if (remain > 0) {
+                    const rh = Math.floor(remain / 3600);
+                    const rm = Math.floor((remain % 3600) / 60);
+                    const nextDate = new Date((now + remain) * 1000).toLocaleString();
+                    document.getElementById('next').textContent = `in ${rh}h${rm}m (${nextDate})`;
+                } else {
+                    document.getElementById('next').innerHTML = '<span class="yellow">due soon</span>';
+                }
+            } else {
+                document.getElementById('last').innerHTML = '<span class="yellow">no record yet</span>';
+                document.getElementById('next').innerHTML = '<span class="yellow">waiting...</span>';
+            }
+        } catch(e) {
+            document.getElementById('last').innerHTML = '<span class="yellow">no record yet</span>';
+            document.getElementById('next').innerHTML = '<span class="yellow">waiting...</span>';
+        }
+
+        // Logs
+        try {
+            const { stdout: logOut } = await exec(`tail -5 ${LOG_FILE} 2>/dev/null`);
+            const lines = logOut.trim().split('\n').filter(l => l);
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML = lines.length > 0
+                ? lines.map(l => `<div class="log-line">${escapeHtml(l)}</div>`).join('')
+                : '<span style="color:var(--muted)">(no logs yet)</span>';
+        } catch(e) {
+            document.getElementById('logs').innerHTML = '<span style="color:var(--muted)">(no logs yet)</span>';
+        }
+
+        // Current timeout setting
+        try {
+            const { stdout: toOut } = await exec(`settings get secure lock_to_app_exipire 2>/dev/null`);
+            const ms = parseInt(toOut.trim());
+            if (ms > 0) {
+                const opts = document.getElementById('timeoutSelect').options;
+                let matched = false;
+                for (let o of opts) {
+                    if (parseInt(o.value) === ms) { o.selected = true; matched = true; break; }
+                }
+                if (!matched) { opts[2].selected = true; } // default 48h
+            }
+        } catch(e) {}
+
+    } catch(e) {
+        toastMsg('Error: ' + e.message);
+    }
+};
+
+window.changePin = async function() {
+    const pin = document.getElementById('pinInput').value.trim();
+    if (!pin || !/^\d+$/.test(pin)) {
+        toastMsg('Please enter a valid numeric PIN');
+        return;
+    }
+    try {
+        const { stdout } = await exec(`echo "${pin}" > ${PIN_CONF} && chmod 600 ${PIN_CONF} && echo OK`);
+        if (stdout.trim() === 'OK') {
+            toastMsg('PIN saved! Reboot to take effect');
+            document.getElementById('pinInput').value = '';
+            refresh();
+        } else {
+            toastMsg('Failed to save PIN');
+        }
+    } catch(e) {
+        toastMsg('Error: ' + e.message);
+    }
+};
+
+window.setTimeout = async function() {
+    const ms = document.getElementById('timeoutSelect').value;
+    try {
+        const { stdout } = await exec(`settings put secure lock_to_app_exipire ${ms} 2>&1`);
+        const days = Math.round(ms / 86400000);
+        toastMsg(`Timeout set to ~${days} days. Takes effect on next strong auth cycle.`);
+    } catch(e) {
+        toastMsg('Error: ' + e.message);
+    }
+};
+
+// Initial load
+refresh();
+
+// Auto-refresh every 30s
+setInterval(refresh, 30000);
+
+// Helper
+function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+window.toastMsg = function(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+};
+</script>
+</body>
+</html>
