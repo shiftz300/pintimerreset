@@ -25,7 +25,7 @@ Periodically resets the Android 48-hour PIN timeout by verifying your device PIN
                                └──────────────────┘                   └──────────────┘
 ```
 
-### AOSP Source Evidence / AOSP 源码证据
+### AOSP Source depending
 
 The entire verification chain is traceable in the Android Open Source Project:
 
@@ -65,22 +65,13 @@ mStrongAuth.reportSuccessfulStrongAuthUnlock(userId);
 
 `reportSuccessfulStrongAuthUnlock()` clears the strong authentication timeout flags in `LockSettingsStrongAuth`, resetting the 48-hour countdown to zero. This is the exact same method called when you unlock your device through the lockscreen.
 
-### Key Insight / 关键点
-
-- **No UI / 无界面**: `locksettings verify` does not call `dismissKeyguard()`. The screen stays locked.
-- **No failure count / 不消耗失败次数**: The verification goes through the TEE's GateKeeper HAL service path, not the lockscreen UI path. On AOSP devices, this does not increment the lockout counter.
-- **Same TEE path / 相同的 TEE 路径**: Uses the exact same GateKeeper HAL as manual unlock.
-- **Only refreshes the token / 仅刷新 token**: Does not decrypt user data, unlock keystore, or unlock CE storage — those require additional steps in `onCredentialVerified()` that are only triggered with proper flags.
-
----
-
 ## Features / 功能
 
-- 🔘 **One-tap status check** — KSU Manager Action button shows last refresh & time remaining
-- 📋 **Live card status** — Module card dynamically shows: `PIN OK | Last: 08:30 | Next: 14:30`
-- 🌐 **Auto locale** — Chinese UI on Chinese systems, English otherwise
-- 🔧 **action set-pin** — Configure PIN with a single command, no file editing needed
-- 📦 **Zero dependencies** — Uses only built-in `locksettings` command
+- **Interactive CLI menu** — Action button shows [1] View Status / [2] Change PIN menu
+- **Live card status** — Module card dynamically shows: `PIN OK | Last: 08:30 | Next: 14:30`
+- **action set-pin** — Configure PIN with a single command, no file editing needed
+- **Auto locale** — Chinese UI on zh-CN systems, English otherwise
+- **Zero dependencies** — Uses only built-in `locksettings` command
 
 ---
 
@@ -88,12 +79,16 @@ mStrongAuth.reportSuccessfulStrongAuthUnlock(userId);
 
 ### 1. Install / 安装
 
-Package the module and flash in KernelSU Manager:
+Package the module:
 
 ```bash
 cd PinTimerReset
 zip -r ../PinTimerReset.zip . -x ".git/*" ".github/*" "README.md"
 ```
+
+or just download zip from relese
+
+then flash it in KernelSU Manager
 
 ### 2. Configure PIN / 配置 PIN
 
@@ -107,33 +102,31 @@ echo "123456" > /data/adb/modules/pin_timer_reset/pin.conf
 
 ### 3. Reboot / 重启
 
-```bash
-reboot
+---
+
+## Action Menu / 操作菜单
+
+Click the **Action** button in KSU Manager / 在 KSU 管理器点击「操作」按钮:
+
+```
+╔══════════════════════════════════╗
+║  48H PIN Timer Reset  v1.0     ║
+╚══════════════════════════════════╝
+
+[1] View Status    (current)
+[2] Change PIN     action.sh set-pin <PIN>
+──────────────────────────────────────────
+Service: [Running]    Config: [Set]
+Interval: every 6h0m0s
+
+Last refresh: 2026-07-14 08:31:45
+Next refresh: in 3h44m30s
+...
 ```
 
 ---
 
-## Usage / 使用方式
-
-### Check Status / 查看状态
-
-| Method / 方式 | Command / 命令 |
-|---|---|
-| KSU Manager Action button | Tap the module's **Action** button |
-| Terminal / 终端 | `sh /data/adb/modules/pin_timer_reset/action.sh` |
-| KSU CLI | `ksud module action pin_timer_reset` |
-
-### Manage PIN / 管理 PIN
-
-```bash
-# Set/update PIN / 设置/更新 PIN
-sh /data/adb/modules/pin_timer_reset/action.sh set-pin 123456
-
-# Show help / 显示帮助
-sh /data/adb/modules/pin_timer_reset/action.sh --help
-```
-
-### View Logs / 查看日志
+## View Logs / 查看日志
 
 ```bash
 tail -f /data/adb/modules/pin_timer_reset/pin_reset.log
@@ -203,9 +196,5 @@ Remove the module in KernelSU Manager and reboot. No persistent system modificat
 ---
 
 ## License / 许可证
-
-MIT
-
-## 许可证
 
 MIT License
