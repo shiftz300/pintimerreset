@@ -1,0 +1,6 @@
+id=pin_timer_reset
+name=48H PIN Timer Reset
+version=v1.0
+versionCode=1
+author=shiftz
+description=Periodically refreshes the Android 48-hour PIN timeout by verifying your device PIN in the background. Prevents forced PIN entry after extended inactivity without compromising security. Requires configuring your unlock PIN via action.sh set-pin.

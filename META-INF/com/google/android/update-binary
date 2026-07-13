@@ -1,0 +1,32 @@
+#!/sbin/sh
+
+# ===================================================================
+# Magisk Module Installer — update-binary
+# 兼容 Magisk v20.4+
+# ===================================================================
+
+umask 022
+
+OUTFD=$2
+ZIPFILE=$3
+
+# 如果 /data 尚未挂载则挂载
+mount /data 2>/dev/null
+
+# 加载 Magisk util_functions
+if [ -f /data/adb/magisk/util_functions.sh ]; then
+    . /data/adb/magisk/util_functions.sh
+elif [ -f /data/adb/magisk/util_functions ]; then
+    . /data/adb/magisk/util_functions
+else
+    echo "! 需要 Magisk v20.4+ 才能安装此模块"
+    exit 1
+fi
+
+[ "$MAGISK_VER_CODE" -lt 20400 ] && {
+    echo "! 需要 Magisk v20.4+ 才能安装此模块"
+    exit 1
+}
+
+install_module
+exit 0
