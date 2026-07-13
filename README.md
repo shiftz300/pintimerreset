@@ -1,200 +1,131 @@
-# 48H PIN Timer Reset — KernelSU Module
+# 48H PIN Timer Reset
 
 [![CI](https://github.com/shiftz300/pintimerreset/actions/workflows/ci.yml/badge.svg)](https://github.com/shiftz300/pintimerreset/actions/workflows/ci.yml)
 
-Periodically resets the Android 48-hour PIN timeout by verifying your device PIN in the background via the GateKeeper HAL. Prevents forced PIN entry after extended inactivity without compromising security.
-
-定期通过 GateKeeper HAL 后台验证设备 PIN，重置 Android 48 小时超时计时器，防止长时间未解锁后强制要求输入 PIN。
-
----
-
-## How It Works / 工作原理
-
-```
-┌──────────────┐    every 6h   ┌───────────────────┐     GateKeeper     ┌──────────────┐
-│  service.sh  │ ────────────→ │ locksettings      │ ────────────────→  │ TEE (Trusted │
-│  (daemon)    │               │ verify --old <PIN>│                    │ Execution)   │
-└──────────────┘               └───────┬───────────┘                    └──────┬───────┘
-                                       │  RESPONSE_OK                          │
-                                       ▼                                       ▼
-                               ┌─────────────────────┐                 ┌──────────────┐
-                               │ LockSettingsService │                 │ Auth Token   │
-                               │ onCredentialVerified│                 │ refreshed    │
-                               │ → reportSuccessful  │                 │ 48h countdown│
-                               │   StrongAuthUnlock  │                 │ reset to 0   │
-                               └─────────────────────┘                 └──────────────┘
-```
-
-### AOSP Source depending
-
-The entire verification chain is traceable in the Android Open Source Project:
-
-#### 1. `locksettings verify` CLI → LockSettingsService
-
-**Source:** [`frameworks/base/cmds/locksettings/src/com/android/commands/locksettings/LockSettingsCmd.java`](https://cs.android.com/android/platform/superproject/+/main:frameworks/base/cmds/locksettings/src/com/android/commands/locksettings/LockSettingsCmd.java)
-
-```
-locksettings verify --old <PIN>
-  → LockSettingsCmd.main()
-    → ILockSettings.shellCommand()
-      → LockSettingsShellCommand dispatches "verify"
-        → LockSettingsService.verifyCredential()
-```
-
-#### 2. PIN verification via GateKeeper HAL (TEE)
-
-**Source:** [`LockSettingsService.java:2421-2492 — doVerifyCredential()`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/core/java/com/android/server/locksettings/LockSettingsService.java)
-
-```java
-// doVerifyCredential() — verifies the credential through GateKeeper HAL
-long protectorId = getCurrentLskfBasedProtectorId(userId);
-authResult = mSpManager.unlockLskfBasedProtector(
-    getGateKeeperService(), protectorId, credential, userId, progressCallback);
-```
-
-This sends the PIN to the TEE (Trusted Execution Environment) via the GateKeeper HAL for hardware-backed verification — the same path used by the lockscreen UI.
-
-#### 3. StrongAuth timer reset on successful verification (THE KEY LINE)
-
-**Source:** [`LockSettingsService.java:3077-3110 — onCredentialVerified()`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/core/java/com/android/server/locksettings/LockSettingsService.java)
-
-```java
-// Line 3107 — THIS resets the 48h countdown
-mStrongAuth.reportSuccessfulStrongAuthUnlock(userId);
-```
-
-`reportSuccessfulStrongAuthUnlock()` clears the strong authentication timeout flags in `LockSettingsStrongAuth`, resetting the 48-hour countdown to zero. This is the exact same method called when you unlock your device through the lockscreen.
-
-## Features / 功能
-
-- **Interactive CLI menu** — Action button shows [1] View Status / [2] Change PIN menu
-- **Live card status** — Module card dynamically shows: `PIN OK | Last: 08:30 | Next: 14:30`
-- **action set-pin** — Configure PIN with a single command, no file editing needed
-- **Auto locale** — Chinese UI on zh-CN systems, English otherwise
-- **Zero dependencies** — Uses only built-in `locksettings` command
+Background PIN verification via GateKeeper HAL to reset the 48h strong auth timeout.
+后台通过 GateKeeper HAL 验证 PIN，重置 Android 48 小时强认证超时。
 
 ---
 
-## Quick Start / 快速开始
+## How It Works
 
-### 1. Install / 安装
-
-Package the module:
-
-```bash
-cd PinTimerReset
-zip -r ../PinTimerReset.zip . -x ".git/*" ".github/*" "README.md"
+```
+service.sh (every N hours)
+  → locksettings verify --old <PIN>
+    → GateKeeper HAL (TEE) verifies PIN
+      → LockSettingsService.onCredentialVerified()
+        → mStrongAuth.reportSuccessfulStrongAuthUnlock()
+          → 48h countdown reset to 0
 ```
 
-or just download zip from relese
+### AOSP Source
 
-then flash it in KernelSU Manager
+| Step | Source File | Key Method |
+|------|------------|------------|
+| CLI entry | [`LockSettingsCmd.java`](https://cs.android.com/android/platform/superproject/+/main:frameworks/base/cmds/locksettings/src/com/android/commands/locksettings/LockSettingsCmd.java) | `locksettings verify` |
+| TEE verification | [`LockSettingsService.java:2421`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/core/java/com/android/server/locksettings/LockSettingsService.java) | `doVerifyCredential()` → `unlockLskfBasedProtector()` |
+| Timer reset | [`LockSettingsService.java:3107`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/core/java/com/android/server/locksettings/LockSettingsService.java) | `mStrongAuth.reportSuccessfulStrongAuthUnlock()` |
 
-### 2. Configure PIN / 配置 PIN
+### Strong Auth Timeout Source
+
+The system's "require PIN after X hours" value is stored in:
+
+```
+Settings.Secure.LOCK_TO_APP_EXPIRE  (milliseconds, default 259200000 = 72h)
+```
+
+Defined in [`LockPatternUtils.StrongAuthTracker`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/java/com/android/internal/widget/LockPatternUtils.java) — OEMs (Samsung, etc.) override the default to 48h. This module can modify it:
 
 ```bash
-# Via action script (recommended / 推荐)
+action.sh set-timeout 24   # 24h
+action.sh set-timeout 168  # 7 days
+```
+
+---
+
+## Quick Start
+
+```bash
+# 1. Flash zip in KernelSU Manager
+
+# 2. Set PIN
 su -c sh /data/adb/modules/pin_timer_reset/action.sh set-pin 123456
 
-# Or edit directly / 或直接编辑
-echo "123456" > /data/adb/modules/pin_timer_reset/pin.conf
-```
-
-### 3. Reboot / 重启
-
----
-
-## Action Menu / 操作菜单
-
-Click the **Action** button in KSU Manager / 在 KSU 管理器点击「操作」按钮:
-
-```
-╔══════════════════════════════════╗
-║  48H PIN Timer Reset  v1.0     ║
-╚══════════════════════════════════╝
-
-[1] View Status    (current)
-[2] Change PIN     action.sh set-pin <PIN>
-──────────────────────────────────────────
-Service: [Running]    Config: [Set]
-Interval: every 6h0m0s
-
-Last refresh: 2026-07-14 08:31:45
-Next refresh: in 3h44m30s
-...
+# 3. Reboot
+reboot
 ```
 
 ---
 
-## View Logs / 查看日志
+## Interactive Menu (Action Button)
+
+Tap the module's **Action** button in KSU Manager:
+
+```
+  48H PIN Timer Reset  v1.0
+
+  Vol+  = [1] View Status
+  Vol-  = [2] Configuration
+  (Wait 10s = default Status)
+```
+
+| Menu | Vol+ | Vol- | Timeout |
+|------|------|------|---------|
+| Main | View Status | Configuration | 10s → Status |
+| Config | Set check interval | Change PIN | 8s → back |
+
+---
+
+## CLI Reference
 
 ```bash
-tail -f /data/adb/modules/pin_timer_reset/pin_reset.log
-```
-
-Sample log / 日志示例：
-```
-[07-14 08:30:45] System booted, starting PIN timer daemon
-[07-14 08:31:45] Verifying PIN...
-[07-14 08:31:45] Timer reset successful - 48h countdown refreshed
-[07-14 08:31:45]   Next check: 07-14 14:31:45
+action.sh                        # Interactive volume-key menu
+action.sh set-pin <PIN>          # Set PIN directly
+action.sh set-timeout <hours>    # Set system strong auth timeout (12/24/48/72/168/720)
+action.sh --help                 # Show help
 ```
 
 ---
 
-## Configuration / 配置
+## Card Status (KSU Live Description)
 
-### Check Interval / 检查间隔
+Module card in KSU Manager dynamically updates after each refresh:
 
-Edit `CHECK_INTERVAL` in `service.sh` (default: 21600s = 6h):
+> `PIN OK | Last: 08:30 | Next: 14:30`
 
-```bash
-CHECK_INTERVAL=10800   # 3 hours / 3 小时
-CHECK_INTERVAL=43200   # 12 hours / 12 小时
-```
-
-### Config File / 配置文件
-
-`/data/adb/modules/pin_timer_reset/pin.conf`:
-
-| Line / 行 | Content / 内容 | Required / 必填 |
-|---|---|---|
-| 1 | Device unlock PIN (digits only) / 设备解锁 PIN（纯数字） | ✅ |
-
-> **Security / 安全**: `/data/adb/modules/` is only accessible by root (UID 0) and shell (UID 2000). Regular apps cannot read it.
+Updated by `service.sh` via `ksud module config set override.description`.
 
 ---
 
-## Compatibility / 兼容性
+## Config
 
-- ✅ KernelSU (Action button + live card status + action config)
-- ✅ Android 10 ~ 14 (AOSP)
-- ⚠️ Magisk (basic compatibility; card description & action are KSU-only)
-- ⚠️ MIUI/HyperOS — may need to disable MIUI optimization
-- ⚠️ Samsung OneUI — lock screen policy may differ
-- ❌ Devices without lock screen (this module is unnecessary)
-
----
-
-## Troubleshooting / 故障排查
-
-| Problem / 问题 | Cause / 原因 | Solution / 解决方法 |
-|---|---|---|
-| `Config file not found` | pin.conf not created | Run `action.sh set-pin <PIN>` |
-| `locksettings command not found` | ROM stripped the command | Incompatible; try alternative ROM |
-| `Verification failed (exit code: 1)` | PIN mismatch | Check pin.conf matches unlock PIN |
-| Module not working after flash | Not rebooted | Reboot the device |
+| Item | Location | Default |
+|------|----------|---------|
+| PIN | `pin.conf` (root-only, 0600) | required |
+| Check interval | `CHECK_INTERVAL=` in `service.sh` | 21600s (6h) |
+| System timeout | `action.sh set-timeout <h>` based on `Settings.Secure.LOCK_TO_APP_EXPIRE` | 48h (varies by OEM) |
+| Log | `pin_reset.log` | rotated at 500 lines |
 
 ---
 
-## Uninstall / 卸载
+## Compatibility
 
-Remove the module in KernelSU Manager and reboot. No persistent system modifications are made.
-
-在 KernelSU 管理器中移除模块并重启。模块不会对系统做任何持久性修改。
+- ✅ KernelSU (Action + card + WebUI)
+- ✅ Android 10–14 AOSP
+- ⚠️ Magisk (basic only; card/action are KSU features)
+- ⚠️ MIUI/HyperOS, Samsung OneUI — may vary
 
 ---
 
-## License / 许可证
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `Config file not found` | Run `action.sh set-pin <PIN>` |
+| `locksettings: not found` | ROM lacks the command |
+| `Verification failed` | PIN in pin.conf doesn't match device PIN |
+| Not working after flash | Reboot |
+
+---
 
 MIT License
